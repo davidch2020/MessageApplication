@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/socket.io/1.4.8/socket.io.min.js"></script>
+        <script src="{{ url_for('static', filename='index1.js') }}"></script>
+        <title>Send Message</title>
+    </head>
+    <body>
+      <h1>Welcome.</h1>
+        <hr>
+        {% block content %}
+        {% if bool == 1 %}
+            <form id="post-message" name="comment-text" method="POST">
+            <input id="actual-message" type="text" name="post">
+            <input type="submit">
+            </form>
+        {% endif %}
+        {% endblock content %}
+        <ul id="post-list">
+          {% for user, post in posts.items() %}
+          {% if user == username %}
+          {% for i in post %}
+          <li>{{ user + ': ' + i }}</li>
+          {% endfor %}
+          {% endif %}
+          {% endfor %}
+        </ul>
+    </body>
+</html>

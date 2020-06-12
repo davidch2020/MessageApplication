@@ -1,6 +1,8 @@
 import os
 import requests
 import smtplib
+import string
+import random
 
 from flask import Flask, jsonify, render_template, request, session, url_for, redirect
 from flask_socketio import SocketIO, emit, join_room, leave_room
@@ -32,45 +34,56 @@ sign_up_errors_mess = []
 username = []
 one_or_zero = {}
 messages = {}
-
+posts = []
+saved_posts = {}
 mysql = MySQL(app)
-bcrypt = Bcrypt(app)
+
 
 if len(username) > 0:
     username = username[0]
 
 @app.route("/<username>", methods=['GET', 'POST'])
 def index1(username):
+    print(username)
+    username5 = session.get('username', None)
+    cur3 = mysql.connection.cursor()
+    cur3.execute("Select email From users1 Where email = %s", [username5])
+    data3 = cur3.fetchone()
 
-    return render_template("index.html")
+    username5 = username5.split("@", 1)
+    username5 = username5[0]
+    if username == username5:
+        bool = 1
+
+    else:
+        bool = 0
+
+    cur3.execute("Select roomid From rooms Where username = %s", [username])
+    data2 = cur3.fetchone()
+    socketio.emit("room_id", {"room_id":data2}, broadcast=True)
+
+    return render_template("index.html", bool=bool, posts=saved_posts, username=username)
 
 @socketio.on("recieved post")
 def index2(data):
     username = session.get('username', None)
     if username is None:
         return redirect(url_for('index'))
-    cur2 = mysql.connection.cursor()
-    cur2.execute("Select * From rooms Where Email = %s", [username])
-    print("Checkpoint 1")
-    data1 = cur2.fetchone()
-    if data1 is None:
-        room = request.sid
-        cur2.execute("Insert Into rooms(Email, Room) Values (%s, %s)", (username, room))
-        mysql.connection.commit()
 
-
-    cur2.execute("Select Room From rooms Where Email = %s", [username])
-    mysql.connection.commit()
-    cur2.close()
-    data1 = cur2.fetchone()
+    username = username.split("@", 1)
+    username = username[0]
     selection = data["selection"]
     room = data["room"]
-    print(room)
+    if username in saved_posts:
+        saved_posts[username].append(selection)
+
+    else:
+        saved_posts.update( { username:[selection] } )
+
+    print(saved_posts)
     join_room(room)
-    print(username)
-    print(selection)
     emit("upload post", {"selection": username + ": " + selection}, room=room)
-    print("Checkpoint")
+    leave_room(room)
 
 
 @app.route("/")
@@ -89,11 +102,9 @@ def form_login():
     password = request.form['pass']
     cur = mysql.connection.cursor()
 
-
-    #https://stackoverflow.com/questions/12277933/send-data-from-a-textbox-into-flask
     cur.execute("Select * From users1 Where email = %s AND password = %s", (username, password))
     data = cur.fetchone()
-    #https://stackoverflow.com/questions/38550263/flask-python-mysql-using-where-clause-in-a-select-query-with-variable-from
+
     if data is None:
         return render_template('login.html', error="Password or Email is incorrect")
 
@@ -177,7 +188,6 @@ def verification2():
     verification_text = int(verification_text)
     random_num = int(random_num)
     if verification_text == random_num:
-
         return clickedsignup(username=username1, password=password1)
         info_array.remove(username1)
         info_array.remove(password1)
@@ -189,20 +199,21 @@ def clickedsignup(username, password):
     password1 = password
     cur1 = mysql.connection.cursor()
 
-    #https://stackoverflow.com/questions/12277933/send-data-from-a-textbox-into-flask
     cur1.execute("Select * From users1 Where email = %s", [username1])
     data1 = cur1.fetchone()
-    #https://stackoverflow.com/questions/38550263/flask-python-mysql-using-where-clause-in-a-select-query-with-variable-from
+
     if data1 is None:
         cur1.execute("Insert Into users1(email, password) Values (%s, %s)", (username1, password1))
         mysql.connection.commit()
-        cur1.close()
-        print("It worked")
-        print(type(username1))
         username1 = username1.split("@", 1)
         username1 = username1[0]
         username += username1
         session['username'] = username1
+        N = 7
+        res = ''.join(random.choices(string.ascii_uppercase + string.digits, k=N))
+        cur1.execute("Insert Into rooms(username, roomid) Values (%s, %s)", (username1, res))
+        mysql.connection.commit()
+        cur1.close()
         errors_mess.append("Account created. You may now log in.")
 
         return redirect(url_for('index'))

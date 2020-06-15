@@ -3,6 +3,7 @@ import requests
 import smtplib
 import string
 import random
+import re
 
 from flask import Flask, jsonify, render_template, request, session, url_for, redirect
 from flask_socketio import SocketIO, emit, join_room, leave_room
@@ -36,6 +37,8 @@ one_or_zero = {}
 messages = {}
 posts = []
 saved_posts = {}
+likes_for_posts = {}
+current_username = []
 mysql = MySQL(app)
 
 
@@ -44,7 +47,7 @@ if len(username) > 0:
 
 @app.route("/<username>", methods=['GET', 'POST'])
 def index1(username):
-    print(username)
+    current_username.append(username)
     username5 = session.get('username', None)
     cur3 = mysql.connection.cursor()
     cur3.execute("Select email From users1 Where email = %s", [username5])
@@ -52,6 +55,7 @@ def index1(username):
 
     username5 = username5.split("@", 1)
     username5 = username5[0]
+
     if username == username5:
         bool = 1
 
@@ -62,10 +66,42 @@ def index1(username):
     data2 = cur3.fetchone()
     socketio.emit("room_id", {"room_id":data2}, broadcast=True)
 
-    return render_template("index.html", bool=bool, posts=saved_posts, username=username)
+    cur3.execute("Select email from users1")
+    data4 = cur3.fetchall()
+
+    num = 0
+    username_in_database = 0
+
+    for i in data4:
+        i = data4[num]
+
+        i = i[0]
+        i = i.split("@", 1)
+        i = i[0]
+
+        if username == i:
+            username_in_database = 1
+            break
+
+        else:
+            num += 1
+
+    if username_in_database == 0:
+        return redirect(url_for('index'))
+
+    res = not saved_posts
+    if username5 in saved_posts:
+        if res == False and username == username5:
+            y = len(saved_posts[username5])
+
+    else:
+        y = 0
+
+    return render_template("index.html", bool=bool, posts=saved_posts, username=username, y=y, likes=likes_for_posts)
 
 @socketio.on("recieved post")
 def index2(data):
+
     username = session.get('username', None)
     if username is None:
         return redirect(url_for('index'))
@@ -74,16 +110,58 @@ def index2(data):
     username = username[0]
     selection = data["selection"]
     room = data["room"]
+
     if username in saved_posts:
         saved_posts[username].append(selection)
 
     else:
         saved_posts.update( { username:[selection] } )
 
+    #likes_for_posts.append(0)
+
+    if current_username[0] in likes_for_posts:
+        likes_for_posts[current_username[0]].append(0)
+        print(likes_for_posts)
+
+    else:
+        likes_for_posts.update( {current_username[0]:[0]} )
+        print(likes_for_posts)
     print(saved_posts)
+    x = len(saved_posts[username])
     join_room(room)
-    emit("upload post", {"selection": username + ": " + selection}, room=room)
+    emit("upload post", {"selection": username + ": " + selection, "length": x}, room=room)
     leave_room(room)
+
+@socketio.on("delete")
+def deleteFunction(data):
+    button_id = data["button_id"]
+    button_id = int(button_id)
+    username = session.get('username', None)
+    username = username.split('@', 1)
+    username = username[0]
+    print(saved_posts[username][button_id])
+    del saved_posts[username][button_id]
+    del likes_for_posts[username][button_id]
+    print(saved_posts[username])
+
+#like_button
+@socketio.on("like")
+def like(data):
+    current_username_1 = current_username[0]
+    print(current_username)
+
+    like_id = data["like_id"]
+    res = [re.findall(r'(\w+?)(\d+)', like_id)[0]]
+    id = res[0][1]
+    id = int(id)
+
+    if current_username_1 in likes_for_posts:
+        likes_for_posts[current_username_1][id] += 1
+        print(likes_for_posts)
+
+    else:
+        likes_for_posts.update( { current_username_1:[1] } )
+        print(likes_for_posts)
 
 
 @app.route("/")

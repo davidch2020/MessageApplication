@@ -3,9 +3,37 @@
     <head>
         <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/socket.io/1.4.8/socket.io.min.js"></script>
         <script src="{{ url_for('static', filename='index1.js') }}"></script>
+        <script src="http://code.jquery.com/jquery-1.11.0.min.js"></script>
         <title>Send Message</title>
     </head>
     <body>
+      <style>
+      li {
+
+        border-radius: 25px;
+        border: 2px solid #3786ff;
+        padding: 20px;
+        width: 600px;
+        min-height: 40%;
+        overflow-wrap: break-word;
+        margin-left: auto;
+        margin-right: auto;
+        margin-bottom: 10px;
+        margin-top: 25px;
+        list-style-type: none;
+        list-style: none;
+        text-align: left;
+
+      }
+
+      button {
+        border: 2px solid #3786ff;
+        margin-left: 10px;
+        margin-right: 10px;
+      }
+
+
+      </style>
       <h1>Welcome.</h1>
         <hr>
         {% block content %}
@@ -16,14 +44,23 @@
             </form>
         {% endif %}
         {% endblock content %}
+        <center>
         <ul id="post-list">
           {% for user, post in posts.items() %}
           {% if user == username %}
           {% for i in post %}
           <li>{{ user + ': ' + i }}</li>
+          {% set m = post.index(i) %}
+          {% if bool == 1 and y != 0 %}
+          <button class="button_id" id="{{ m }}">Delete</button>
+          {% endif %}
+          <button class="like_id" id="post{{ m }}">Like</button>
+          {% set n = likes[username][m] %}
+          <p id="likes{{ m }}">{{ n }}</p>
           {% endfor %}
           {% endif %}
           {% endfor %}
         </ul>
+      </center>
     </body>
 </html>

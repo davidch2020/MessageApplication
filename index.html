@@ -34,7 +34,7 @@
 
 
       </style>
-      <h1>Welcome.</h1>
+      <h1>Welcome {{ username }}</h1>
         <hr>
         {% block content %}
         {% if bool == 1 %}
@@ -44,17 +44,36 @@
             </form>
         {% endif %}
         {% endblock content %}
+
         <center>
         <ul id="post-list">
           {% for user, post in posts.items() %}
           {% if user == username %}
           {% for i in post %}
-          <li>{{ user + ': ' + i }}</li>
           {% set m = post.index(i) %}
+          <li id = "message{{ m }}">{{ user + ': ' + i }}</li>
+
           {% if bool == 1 and y != 0 %}
           <button class="button_id" id="{{ m }}">Delete</button>
           {% endif %}
+
+          {% if data[m] | length == 0 %}
           <button class="like_id" id="post{{ m }}">Like</button>
+          <button class="unlike_id" id="unlike{{ m }}" style="visibility:hidden;">Unlike</button>
+
+          {% elif data | length == 0 or data[m][1] == '0' %}
+          <button class="like_id" id="post{{ m }}">Like</button>
+          <button class="unlike_id" id="unlike{{ m }}" style="visibility:hidden;">Unlike</button>
+
+          {% elif data[m][1] == '1' %}
+          <button class="like_id" id="post{{ m }}" disabled>Like</button>
+          <button class="unlike_id" id="unlike{{ m }}" style="visibility:visible;">Unlike</button>
+
+          {% else %}
+          <p>This outcome should've never have occured</p>
+          {% endif %}
+
+          {% set bool = 1 %}
           {% set n = likes[username][m] %}
           <p id="likes{{ m }}">{{ n }}</p>
           {% endfor %}

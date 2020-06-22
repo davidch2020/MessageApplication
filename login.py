@@ -13,6 +13,7 @@ import mysql.connector as msql
 from random import randint
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from datetime import datetime, date
 
 
 app = Flask(__name__)
@@ -28,6 +29,7 @@ app.config['MYSQL_USER'] = 'root'
 app.config['MYSQL_PASSWORD'] = 'root'
 app.config['MYSQL_DB'] = "david1_database"
 
+temp_variable = 0
 temp_array = []
 info_array = []
 errors_mess = []
@@ -40,8 +42,8 @@ saved_posts = {}
 likes_for_posts = {}
 current_username = []
 mysql = MySQL(app)
-
-
+now = datetime.now()
+date = date.today()
 if len(username) > 0:
     username = username[0]
 
@@ -97,11 +99,18 @@ def index1(username):
     else:
         y = 0
 
-    return render_template("index.html", bool=bool, posts=saved_posts, username=username, y=y, likes=likes_for_posts)
+    cur3.execute("Select post_id, liked From Likes Where username = %s AND owner = %s Order By post_id", (username5, username))
+    data5 = cur3.fetchall()
+    if data5 is None:
+        data5 = []
+
+    else:
+        print(data5)
+
+    return render_template("index.html", bool=bool, posts=saved_posts, username=username, y=y, likes=likes_for_posts, data=data5)
 
 @socketio.on("recieved post")
 def index2(data):
-
     username = session.get('username', None)
     if username is None:
         return redirect(url_for('index'))
@@ -117,15 +126,12 @@ def index2(data):
     else:
         saved_posts.update( { username:[selection] } )
 
-    #likes_for_posts.append(0)
-
     if current_username[0] in likes_for_posts:
         likes_for_posts[current_username[0]].append(0)
-        print(likes_for_posts)
 
     else:
         likes_for_posts.update( {current_username[0]:[0]} )
-        print(likes_for_posts)
+
     print(saved_posts)
     x = len(saved_posts[username])
     join_room(room)
@@ -134,35 +140,93 @@ def index2(data):
 
 @socketio.on("delete")
 def deleteFunction(data):
+    current_username_1 = current_username[0]
     button_id = data["button_id"]
     button_id = int(button_id)
+    button_id_off = int(button_id)
     username = session.get('username', None)
     username = username.split('@', 1)
     username = username[0]
-    print(saved_posts[username][button_id])
-    del saved_posts[username][button_id]
+    if len(saved_posts[username]) == 1:
+        print("Checkpoint")
+        button_id = 0
+
+    try:
+        del saved_posts[username][button_id]
+
+    except IndexError:
+        button_id = button_id - 1
+        del saved_posts[username][button_id]
+
     del likes_for_posts[username][button_id]
     print(saved_posts[username])
+
+    cursor = mysql.connection.cursor()
+    cursor.execute("Select * From Likes Where owner = %s AND post_id = %s", (current_username_1, button_id_off))
+    data3 = cursor.fetchone()
+    if data3 is not None:
+        cursor.execute("Delete From Likes Where owner = %s AND post_id = %s", (current_username_1, button_id_off))
+        mysql.connection.commit()
+        print("Here")
 
 #like_button
 @socketio.on("like")
 def like(data):
     current_username_1 = current_username[0]
-    print(current_username)
-
+    print(current_username_1)
     like_id = data["like_id"]
     res = [re.findall(r'(\w+?)(\d+)', like_id)[0]]
     id = res[0][1]
     id = int(id)
 
-    if current_username_1 in likes_for_posts:
-        likes_for_posts[current_username_1][id] += 1
-        print(likes_for_posts)
+
+    try:
+        if current_username_1 in likes_for_posts:
+            likes_for_posts[current_username_1][id] += 1
+
+        else:
+            likes_for_posts.update( { current_username_1:[1] } )
+
+    except IndexError:
+        likes_for_posts[current_username_1][id - 1] += 1
+
+
+    username = session.get('username', None)
+    username = username.split('@', 1)
+    username = username[0]
+
+    cursor = mysql.connection.cursor()
+    cursor.execute("Select * From Likes Where owner = %s AND post_id = %s AND username = %s", (current_username_1, id, username))
+    data3 = cursor.fetchone()
+    if data3 is None:
+        if id != 0:
+            for i in range(id):
+                cursor.execute("Select * From Likes Where owner = %s AND post_id = %s AND username = %s",(current_username_1, i, username))
+                cursor_data = cursor.fetchone()
+                if cursor_data is None:
+                    cursor.execute("Insert Into Likes(post_id, username, liked, owner) Values (%s, %s, %s, %s)", (i, username, False, current_username_1))
+
+        cursor.execute("Insert Into Likes(post_id, username, liked, owner) Values (%s, %s, %s, %s)", (id, username, True, current_username_1))
+        mysql.connection.commit()
+        print("Committed")
 
     else:
-        likes_for_posts.update( { current_username_1:[1] } )
-        print(likes_for_posts)
+        cursor.execute("Update Likes Set liked = %s Where username = %s AND owner = %s AND post_id = %s", (True, username, current_username_1, id))
+        mysql.connection.commit()
+        print("Updated")
 
+@socketio.on("unlike")
+def unlike(data):
+    current_username_1 = current_username[0]
+    username = session.get('username', None)
+    username = username.split('@', 1)
+    username = username[0]
+    unlike_id = data['unlike_id']
+    likes_for_posts[current_username_1][unlike_id] -= 1
+
+    cursor = mysql.connection.cursor()
+    cursor.execute("Update Likes Set liked = %s Where username = %s AND owner = %s AND post_id = %s", (False, username, current_username_1, unlike_id))
+    mysql.connection.commit()
 
 @app.route("/")
 def index():
@@ -197,7 +261,24 @@ def visits():
     if username is None:
         return redirect(url_for('index'))
 
-    return render_template('index1.html', username=username)
+    return render_template('index1.html', username=username, searched_user=1)
+
+@app.route('/diff_index', methods=['GET', 'POST'])
+def search_users():
+    username = session.get('username', None)
+    user = request.form['user']
+    cursor = mysql.connection.cursor()
+    print("Checkpoint Here")
+    cursor.execute("Select email From users1 Where email = %s", [user])
+    data = cursor.fetchall()
+
+    data = data[0][0]
+    data = data.split("@", 1)
+    data = data[0]
+
+    print(data)
+
+    return render_template('index1.html', username=username, searched_user=[data])
 
 
 @app.route('/logout', methods=['GET', 'POST'])

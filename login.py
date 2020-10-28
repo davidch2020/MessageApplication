@@ -325,7 +325,7 @@ def verification():
     mail = smtplib.SMTP('smtp.gmail.com', 587)
     mail.ehlo()
     mail.starttls()
-    mail.login(from_address, '1108Namwook')
+    mail.login(from_address, 'insert_password_here')
     mail.sendmail(from_address, to_address, message.as_string())
     mail.close()
 
